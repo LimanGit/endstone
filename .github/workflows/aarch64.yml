@@ -8,13 +8,13 @@ permissions:
 
 jobs:
   build_wheels:
-    name: Build Wheel (${{ matrix.python-tag }}-manylinux_aarch64)
+    name: Build Wheel (${{ matrix.python-version }}-manylinux_aarch64)
     runs-on: ubuntu-22.04-arm
 
     strategy:
       fail-fast: false
       matrix:
-        python-tag: ["cp312", "cp313"]
+        python-version: ["3.12", "3.13"]
 
     steps:
       # Checkout code
@@ -28,7 +28,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-tag | replace('cp', '').replace('','.') }}  # 3.12, 3.13
+          python-version: ${{ matrix.python-version }}
 
       # Install Conan
       - name: Install Conan
@@ -59,7 +59,7 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
         env:
-          CIBW_BUILD: ${{ matrix.python-tag }}-manylinux_aarch64
+          CIBW_BUILD: cp${{ matrix.python-version | replace('.', '') }}-manylinux_aarch64
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
           CIBW_ENVIRONMENT_PASS_LINUX: "CONAN_PROFILE"
           CIBW_ENVIRONMENT: >
@@ -86,5 +86,5 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v6
         with:
-          name: endstone-wheels-${{ matrix.python-tag }}-manylinux_aarch64
+          name: endstone-wheels-${{ matrix.python-version }}-manylinux_aarch64
           path: wheelhouse/*.whl
