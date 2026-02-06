@@ -1,0 +1,83 @@
+name: Linux Wheels (AArch64 Hardened)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build_wheels:
+    name: Build Wheel (${{ matrix.python-tag }}-manylinux_aarch64)
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-tag: [ "cp312", "cp313" ]
+
+    steps:
+
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Enable QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+
+      - name: Cache Conan
+        uses: actions/cache@v5
+        with:
+          path: ~/.conan2/p
+          key: linux-aarch64-conan-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            linux-aarch64-conan-
+
+      - name: Set up CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+
+      - name: Set Conan Home
+        run: echo "CONAN_HOME=/host${HOME}/.conan2" >> $GITHUB_ENV
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.3.1
+        env:
+
+          CIBW_BUILD: ${{ matrix.python-tag }}-manylinux_aarch64
+
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+
+          CIBW_ENVIRONMENT_PASS_LINUX: "CONAN_HOME"
+
+          CIBW_ENVIRONMENT: >
+            CXXFLAGS="-O2 -fPIC -static-libstdc++ -static-libgcc"
+            CFLAGS="-O2 -fPIC"
+            LDFLAGS="-static-libstdc++ -static-libgcc"
+
+          CIBW_REPAIR_WHEEL_COMMAND: >
+            auditwheel repair --strict -w {dest_dir} {wheel}
+
+          CIBW_BUILD_VERBOSITY: 2
+
+      - name: Fix Conan permissions
+        run: sudo chown -R $USER:$USER ~/.conan2
+
+      - name: Verify wheels
+        run: |
+          python3 -m pip install --upgrade auditwheel
+          for whl in wheelhouse/*.whl; do
+            echo "---- Checking $whl ----"
+            auditwheel show "$whl"
+          done
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: endstone-wheels-${{ matrix.python-tag }}-manylinux_aarch64
+          path: wheelhouse/*.whl
