@@ -37,6 +37,11 @@ jobs:
       - name: Set Conan Home
         run: echo "CONAN_HOME=/host${HOME}/.conan2" >> $GITHUB_ENV
 
+      - name: Set Conan profile for Linux
+        run: |
+          conan profile new default --detect || true
+          conan profile update settings.compiler.libcxx=libstdc++11 default
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
         env:
@@ -50,7 +55,7 @@ jobs:
           CIBW_REPAIR_WHEEL_COMMAND: >
             auditwheel repair --strict -w {dest_dir} {wheel}
           CIBW_BUILD_VERBOSITY: 2
-          CIBW_BEFORE_ALL: ""  # disable automatic LLVM/apt-get step
+          CIBW_BEFORE_ALL: ""
 
       - name: Fix Conan permissions
         run: sudo chown -R $USER:$USER ~/.conan2
