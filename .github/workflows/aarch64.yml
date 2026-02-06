@@ -1,4 +1,4 @@
-name: Linux Wheels (AArch64 Hardened)
+name: Linux Wheels (AArch64 Hardened, No Sentry)
 
 on:
   workflow_dispatch:
@@ -9,7 +9,8 @@ permissions:
 jobs:
   build_wheels:
     name: Build Wheel (${{ matrix.python-tag }}-manylinux_aarch64)
-    runs-on: ubuntu-latest
+    # Use the new GitHub-hosted ARM64 runner
+    runs-on: ubuntu-22.04-arm
 
     strategy:
       fail-fast: false
@@ -17,24 +18,75 @@ jobs:
         python-tag: [ "cp312", "cp313" ]
 
     steps:
-
+      # 1️⃣ Checkout source code
       - name: Checkout Code
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: true
 
-      - name: Enable QEMU
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
-
-
+      # 2️⃣ Cache Conan dependencies
       - name: Cache Conan
         uses: actions/cache@v5
         with:
           path: ~/.conan2/p
           key: linux-aarch64-conan-${{ hashFiles('conanfile.py') }}
+          restore-keys: |
+            linux-aarch64-conan-
+
+      # 3️⃣ Set up CMake and Ninja
+      - name: Set up CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      # 4️⃣ Set Conan home inside container
+      - name: Set Conan Home
+        run: echo "CONAN_HOME=/host${HOME}/.conan2" >> $GITHUB_ENV
+
+      # 5️⃣ Build wheels with cibuildwheel
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v3.3.1
+        env:
+          # Target Python + platform
+          CIBW_BUILD: ${{ matrix.python-tag }}-manylinux_aarch64
+
+          # Use modern manylinux for ARM64
+          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
+
+          # Pass Conan environment
+          CIBW_ENVIRONMENT_PASS_LINUX: "CONAN_HOME"
+
+          # Hardening flags to statically link libstdc++/gcc
+          CIBW_ENVIRONMENT: >
+            CXXFLAGS="-O2 -fPIC -static-libstdc++ -static-libgcc"
+            CFLAGS="-O2 -fPIC"
+            LDFLAGS="-static-libstdc++ -static-libgcc"
+
+          # Strict auditwheel repair to catch missing .so
+          CIBW_REPAIR_WHEEL_COMMAND: >
+            auditwheel repair --strict -w {dest_dir} {wheel}
+
+          # Verbose output for debugging
+          CIBW_BUILD_VERBOSITY: 2
+
+      # 6️⃣ Fix Conan folder permissions
+      - name: Fix Conan permissions
+        run: sudo chown -R $USER:$USER ~/.conan2
+
+      # 7️⃣ Verify wheels for hidden dependencies
+      - name: Verify wheels
+        run: |
+          python3 -m pip install --upgrade auditwheel
+          for whl in wheelhouse/*.whl; do
+            echo "---- Checking $whl ----"
+            auditwheel show "$whl"
+          done
+
+      # 8️⃣ Upload wheels as artifacts
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: endstone-wheels-${{ matrix.python-tag }}-manylinux_aarch64
+          path: wheelhouse/*.whl          key: linux-aarch64-conan-${{ hashFiles('conanfile.py') }}
           restore-keys: |
             linux-aarch64-conan-
 
