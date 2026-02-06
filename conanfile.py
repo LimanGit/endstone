@@ -42,18 +42,23 @@ class EndstoneRecipe(ConanFile):
     def validate(self):
         check_min_cppstd(self, self._min_cppstd)
 
-        if self.settings.arch != "x86_64":
+        # Allow x86_64 and ARM64
+        if self.settings.arch not in ["x86_64", "armv8"]:
             raise ConanInvalidConfiguration(
-                f"{self.ref} can only be built on x86_64. {self.settings.arch} is not supported."
+                f"{self.ref} only supports x86_64 or ARM64. {self.settings.arch} not supported."
             )
 
         if self.settings.os not in ["Windows", "Linux"]:
             raise ConanInvalidConfiguration(
-                f"{self.ref} can only be built on Windows or Linux. {self.settings.os} is not supported."
+                f"{self.ref} only supports Windows or Linux. {self.settings.os} not supported."
             )
 
-        if self.settings.os == "Linux" and not self.settings.compiler.libcxx == "libc++":
-            raise ConanInvalidConfiguration(f"{self.ref} requires C++ standard libraries libc++ on Linux.")
+        # Linux ARM uses libstdc++11
+        if self.settings.os == "Linux":
+            if str(self.settings.compiler.libcxx) not in ["libc++", "libstdc++11"]:
+                raise ConanInvalidConfiguration(
+                    f"{self.ref} requires libc++ or libstdc++11 on Linux."
+                )
 
     def requirements(self):
         self.requires("base64/0.5.2")
@@ -87,9 +92,6 @@ class EndstoneRecipe(ConanFile):
     def config_options(self):
         if self.settings.os == "Windows":
             self.options.rm_safe("fPIC")
-
-        # if self.settings.os in ("FreeBSD", "Linux"):
-        #     self.options["sentry-native/*"].backend = "inproc"
 
     def configure(self):
         if self.options.shared:
