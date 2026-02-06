@@ -8,14 +8,12 @@ class EndstoneRecipe(ConanFile):
     name = "endstone"
     package_type = "library"
 
-    # Optional metadata
     license = "Apache-2.0"
     url = "https://github.com/EndstoneMC/endstone"
     homepage = "https://github.com/EndstoneMC/endstone"
     description = "Endstone offers a plugin API for Bedrock Dedicated Servers, supporting both Python and C++."
     topics = ("plugin", "python", "c++", "minecraft", "bedrock")
 
-    # Binary configuration
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False], "fPIC": [True, False]}
     default_options = {
@@ -23,6 +21,9 @@ class EndstoneRecipe(ConanFile):
         "fPIC": True,
         "boost/*:header_only": True,
         "date/*:header_only": True,
+        "sentry-native/*:backend": "breakpad",
+        "sentry-native/*:transport": "curl",
+        "sentry-native/*:crashpad": False,
     }
 
     exports_sources = "CMakeLists.txt", "src/*", "include/*", "tests/*"
@@ -42,7 +43,6 @@ class EndstoneRecipe(ConanFile):
     def validate(self):
         check_min_cppstd(self, self._min_cppstd)
 
-        # Allow x86_64 and ARM64
         if self.settings.arch not in ["x86_64", "armv8"]:
             raise ConanInvalidConfiguration(
                 f"{self.ref} only supports x86_64 or ARM64. {self.settings.arch} not supported."
@@ -53,7 +53,6 @@ class EndstoneRecipe(ConanFile):
                 f"{self.ref} only supports Windows or Linux. {self.settings.os} not supported."
             )
 
-        # Linux ARM uses libstdc++11
         if self.settings.os == "Linux":
             if str(self.settings.compiler.libcxx) not in ["libc++", "libstdc++11"]:
                 raise ConanInvalidConfiguration(
