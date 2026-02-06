@@ -16,41 +16,37 @@ jobs:
       matrix:
         python-tag: ["cp312", "cp313"]
 
-    env:
-      CONAN_PROFILE: aarch64
-      CIBW_BUILD_VERBOSITY: 2
-
     steps:
-      - name: Checkout Code
+      # Checkout code
+      - name: Checkout code
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           submodules: true
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      # Set up Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-tag == 'cp312' && '3.12' || '3.13' }}
+          python-version: ${{ matrix.python-tag | replace('cp', '').replace('','.') }}  # 3.12, 3.13
 
-      - name: Upgrade pip, wheel, and setuptools
-        run: python -m pip install --upgrade pip setuptools wheel
-
+      # Install Conan
       - name: Install Conan
-        run: python -m pip install --upgrade conan
+        run: python -m pip install --upgrade pip conan
 
-      - name: Create Conan ARM64 profile
+      # Configure Conan profile for ARM64 + GCC
+      - name: Configure Conan profile
         run: |
-          mkdir -p ~/.conan2/profiles
-          cat > ~/.conan2/profiles/aarch64 <<EOF
-          [settings]
-          os=Linux
-          arch=armv8
-          compiler=gcc
-          compiler.version=12
-          compiler.libcxx=libstdc++11
-          build_type=Release
-          EOF
+          conan profile new default --detect || true
+          conan profile update settings.compiler=gcc default
+          conan profile update settings.compiler.version=12 default
+          conan profile update settings.compiler.libcxx=libstdc++11 default
+          conan profile update settings.arch=armv8 default
+          conan profile update settings.os=Linux default
+          conan profile update settings.build_type=Release default
+        shell: bash
 
+      # Cache Conan packages
       - name: Cache Conan
         uses: actions/cache@v5
         with:
@@ -59,9 +55,7 @@ jobs:
           restore-keys: |
             linux-aarch64-conan-
 
-      - name: Set up CMake and Ninja
-        uses: lukka/get-cmake@latest
-
+      # Build wheels
       - name: Build wheels
         uses: pypa/cibuildwheel@v3.3.1
         env:
@@ -72,12 +66,15 @@ jobs:
             CXXFLAGS="-O2 -fPIC"
             CFLAGS="-O2 -fPIC"
             LDFLAGS=""
-          CIBW_REPAIR_WHEEL_COMMAND: >
-            auditwheel repair --strict -w {dest_dir} {wheel}
+          CIBW_BEFORE_ALL: ""  # disable apt/LLVM install
+          CIBW_REPAIR_WHEEL_COMMAND: auditwheel repair --strict -w {dest_dir} {wheel}
+          CIBW_BUILD_VERBOSITY: 2
 
+      # Fix Conan permissions
       - name: Fix Conan permissions
         run: sudo chown -R $USER:$USER ~/.conan2
 
+      # Verify built wheels
       - name: Verify wheels
         run: |
           python -m pip install --upgrade auditwheel
@@ -85,6 +82,7 @@ jobs:
             auditwheel show "$whl"
           done
 
+      # Upload wheels as artifact
       - name: Upload Artifact
         uses: actions/upload-artifact@v6
         with:
