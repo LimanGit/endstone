@@ -44,9 +44,9 @@ jobs:
           CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_28
           CIBW_ENVIRONMENT_PASS_LINUX: "CONAN_HOME"
           CIBW_ENVIRONMENT: |
-            CXXFLAGS="-O2 -fPIC -static-libstdc++ -static-libgcc"
+            CXXFLAGS="-O2 -fPIC"
             CFLAGS="-O2 -fPIC"
-            LDFLAGS="-static-libstdc++ -static-libgcc"
+            LDFLAGS=""
           CIBW_REPAIR_WHEEL_COMMAND: |
             auditwheel repair --strict -w {dest_dir} {wheel}
           CIBW_BUILD_VERBOSITY: 2
